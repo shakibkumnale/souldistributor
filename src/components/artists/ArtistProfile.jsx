@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { getImagePath } from '@/lib/images';
 import { CheckCircle, Music, Youtube, Instagram, ListMusic, Grid, List } from 'lucide-react';
 import ReleasesGrid from '../releases/ReleasesGrid';
 import PublicReleasesTable from '../releases/PublicReleasesTable';
@@ -31,7 +32,7 @@ export default function ArtistProfile({ artist, releases = [] }) {
     id: playlist.playlistId,
     title: playlist.title,
     description: playlist.description,
-    coverImage: playlist.coverImage || '/images/placeholder-cover.jpg',
+    coverImage: getImagePath(playlist.coverImage, '/images/placeholder-cover.jpg'),
     spotifyUrl: `https://open.spotify.com/playlist/${playlist.playlistId}`,
   })) || [];
   
@@ -61,11 +62,12 @@ export default function ArtistProfile({ artist, releases = [] }) {
         <div className="flex flex-col gap-8 md:flex-row">
           <div className="relative flex-shrink-0 overflow-hidden rounded-xl aspect-square w-full max-w-xs mx-auto md:mx-0 shadow-glow-primary border border-purple-500/20">
             <Image
-              src={artist.image || '/images/placeholder-cover.jpg'}
+              src={getImagePath(artist.image, '/images/placeholder-cover.jpg')}
               alt={artist.name}
               fill
               className="object-cover"
               priority
+              unoptimized={true}
             />
           </div>
           
@@ -82,7 +84,7 @@ export default function ArtistProfile({ artist, releases = [] }) {
             <div className="flex flex-wrap gap-3 pt-2">
               {artist.spotifyUrl && (
                 <Link 
-                  href={`https://open.spotify.com/artist/${artist.spotifyUrl}`} 
+                  href={`${artist.spotifyUrl}`} 
 
                   target="_blank" 
                   className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-green-400 bg-green-950 rounded-full hover:bg-green-900 transition-colors"

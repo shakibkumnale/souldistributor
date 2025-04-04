@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import connectToDatabase from '@/lib/db';
 import Release from '@/models/Release';
 import Artist from '@/models/Artist';
 import mongoose from 'mongoose';
@@ -82,37 +82,63 @@ export async function GET(request) {
     
     const skip = (page - 1) * limit;
     
-    // Fetch releases with pagination
-    const releases = await Release.find(query)
-      .populate('artists')
-      .sort({ releaseDate: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    // Use try/catch for each database operation to prevent cascading failures
+    let releases = [];
+    try {
+      // Fetch releases with pagination
+      releases = await Release.find(query)
+        .populate('artists')
+        .sort({ releaseDate: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+    } catch (dbError) {
+      console.error('Error fetching releases from database:', dbError);
+      // Return empty array instead of failing
+      releases = [];
+    }
     
-    const total = await Release.countDocuments(query);
+    // Get total count safely
+    let total = 0;
+    try {
+      total = await Release.countDocuments(query);
+    } catch (countError) {
+      console.error('Error counting releases:', countError);
+    }
     
     // Double serialize to ensure all ObjectIds are properly converted to strings
     const serializedReleases = releases.map(release => {
-      // Explicitly convert _id to string
-      const serialized = {
-        ...release,
-        _id: release._id.toString(),
-      };
-      
-      // Convert artist IDs to strings if populated
-      if (release.artists && Array.isArray(release.artists)) {
-        serialized.artists = release.artists.map(artist => {
-          if (typeof artist === 'string') return artist;
-          
-          return {
-            ...artist,
-            _id: artist._id.toString()
-          };
-        });
+      try {
+        // Explicitly convert _id to string
+        const serialized = {
+          ...release,
+          _id: release._id ? release._id.toString() : '',
+        };
+        
+        // Convert artist IDs to strings if populated
+        if (release.artists && Array.isArray(release.artists)) {
+          serialized.artists = release.artists.map(artist => {
+            if (typeof artist === 'string') return artist;
+            if (!artist) return '';
+            
+            try {
+              return {
+                ...artist,
+                _id: artist._id ? artist._id.toString() : ''
+              };
+            } catch (artistError) {
+              console.error('Error serializing artist:', artistError);
+              return artist;
+            }
+          }).filter(Boolean); // Remove any null/undefined values
+        }
+        
+        return serialized;
+      } catch (serializeError) {
+        console.error('Error serializing release:', serializeError, release);
+        // Return a safe version of the release
+        return { _id: '', title: 'Error processing release', artists: [] };
       }
-      
-      return serialized;
     });
     
     // Apply the second layer of serialization to catch any nested ObjectIds
@@ -125,6 +151,11 @@ export async function GET(request) {
         pages: Math.ceil(total / limit),
         page,
         limit
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   } catch (error) {

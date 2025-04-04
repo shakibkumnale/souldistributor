@@ -1,6 +1,6 @@
 // src/app/artists/[slug]/page.jsx
 import { notFound } from 'next/navigation';
-import connectToDatabase from '@/lib/db';
+import connectToDatabase, { cachedDbQuery } from '@/lib/db';
 import Artist from '@/models/Artist';
 import Release from '@/models/Release';
 import ArtistProfile from '@/components/artists/ArtistProfile';
@@ -8,11 +8,25 @@ import { serializeMongoDB } from '@/lib/utils';
 import { FullPageLoader } from '@/components/ui/LoadingSpinner';
 import { FullPageError } from '@/components/ui/ErrorDisplay';
 import { Suspense } from 'react';
+import { createTimedCacheKey } from '@/lib/cache';
+
+// Enable ISR (Incremental Static Regeneration) with revalidation
+export const revalidate = 3600; // Revalidate this page every hour
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  await connectToDatabase();
-  const artist = await Artist.findOne({ slug });
+  
+  // Use the cachedDbQuery utility for metadata generation
+  const cacheKey = createTimedCacheKey('artist-metadata', { slug });
+  
+  const artist = await cachedDbQuery(
+    async () => {
+      await connectToDatabase();
+      return Artist.findOne({ slug });
+    },
+    cacheKey,
+    3600 // Cache for 1 hour
+  );
   
   if (!artist) {
     return {
@@ -39,7 +53,7 @@ export async function generateMetadata({ params }) {
     ],
   };
   
-  return {
+  const metadata = {
     title: `${artist.name} | Soul Distribution`,
     description: artist.bio || `Official page for ${artist.name}`,
     alternates: {
@@ -71,34 +85,48 @@ export async function generateMetadata({ params }) {
       images: [imageUrl],
     },
   };
+  
+  return metadata;
 }
 
+// Implement data fetching with Next.js caching
 async function getArtistData(slug) {
-  await connectToDatabase();
-  const artist = await Artist.findOne({ slug }).lean();
+  // Create a stable cache key for this query
+  const cacheKey = createTimedCacheKey('artist-data', { slug });
   
-  if (!artist) {
-    return null;
-  }
-  
-  const releases = await Release.find({ artists: artist._id })
-    .populate('artists')
-    .sort({ releaseDate: -1 })
-    .lean();
-  
-  console.log(`Found ${releases.length} releases for artist ${artist.name} (ID: ${artist._id})`);
-  
-  const releasesWithArtistInfo = releases.map(release => {
-    return {
-      ...release,
-      artistName: artist.name
-    };
-  });
-  
-  return {
-    artist: serializeMongoDB(artist),
-    releases: serializeMongoDB(releasesWithArtistInfo)
-  };
+  // Use the cachedDbQuery utility to handle caching
+  return cachedDbQuery(
+    async () => {
+      await connectToDatabase();
+      const artist = await Artist.findOne({ slug }).lean();
+      
+      if (!artist) {
+        return null;
+      }
+      
+      const releases = await Release.find({ artists: artist._id })
+        .populate('artists')
+        .sort({ releaseDate: -1 })
+        .lean();
+      
+      console.log(`Found ${releases.length} releases for artist ${artist.name} (ID: ${artist._id})`);
+      
+      const releasesWithArtistInfo = releases.map(release => {
+        return {
+          ...release,
+          artistName: artist.name
+        };
+      });
+      
+      // Prepare the response data
+      return {
+        artist: serializeMongoDB(artist),
+        releases: serializeMongoDB(releasesWithArtistInfo)
+      };
+    },
+    cacheKey,
+    3600 // Cache for 1 hour
+  );
 }
 
 export default async function ArtistPage({ params }) {

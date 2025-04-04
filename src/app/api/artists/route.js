@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import connectToDatabase from '@/lib/db';
 import Artist from '@/models/Artist';
 import { fetchArtistFromSpotify } from '@/lib/api';
 
@@ -13,22 +13,64 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
     
-    // Include plans and payment history in the selection
-    const artists = await Artist.find({})
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select('name slug image spotifyData.genres spotifyData.images spotifyData.followers plans paymentHistory');
+    // Use try/catch for each database operation to prevent cascading failures
+    let artists = [];
+    try {
+      // Include plans and payment history in the selection
+      artists = await Artist.find({})
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('name slug image spotifyData.genres spotifyData.images spotifyData.followers plans paymentHistory');
+    } catch (dbError) {
+      console.error('Error fetching artists from database:', dbError);
+      // Return empty array instead of failing
+      artists = [];
+    }
     
-    const total = await Artist.countDocuments({});
+    // Get total count safely
+    let total = 0;
+    try {
+      total = await Artist.countDocuments({});
+    } catch (countError) {
+      console.error('Error counting artists:', countError);
+    }
+    
+    // Safely serialize artists to prevent ObjectId issues
+    const safeArtists = artists.map(artist => {
+      try {
+        // Convert to plain object if it's a Mongoose document
+        const artistObj = artist.toObject ? artist.toObject() : artist;
+        
+        // Ensure _id is a string
+        if (artistObj._id) {
+          artistObj._id = artistObj._id.toString();
+        }
+        
+        return artistObj;
+      } catch (serializeError) {
+        console.error('Error serializing artist:', serializeError);
+        // Return a minimal safe version
+        return { 
+          _id: artist._id ? artist._id.toString() : '',
+          name: artist.name || 'Unknown Artist',
+          slug: artist.slug || ''
+        };
+      }
+    });
     
     return NextResponse.json({
-      artists,
+      artists: safeArtists,
       pagination: {
         total,
         pages: Math.ceil(total / limit),
         page,
         limit
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache'
       }
     });
   } catch (error) {

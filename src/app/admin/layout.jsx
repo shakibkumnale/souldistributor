@@ -18,7 +18,22 @@ export default function AdminLayout({ children }) {
     // Check if user is authenticated as admin on mount
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/verify-admin');
+        // Add cache-busting query parameter to prevent browser caching
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/auth/verify-admin?t=${timestamp}`, {
+          // Add credentials to ensure cookies are sent
+          credentials: 'include',
+          // Add cache control headers
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Auth check failed: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.isAdmin) {
@@ -29,6 +44,7 @@ export default function AdminLayout({ children }) {
         }
       } catch (err) {
         console.error('Auth check error:', err);
+        // Show error message but still redirect
         router.push('/login');
       } finally {
         setLoading(false);
@@ -53,10 +69,28 @@ export default function AdminLayout({ children }) {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      const response = await fetch('/api/auth/logout', { 
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Logout failed: ${response.status}`);
+      }
+      
+      // Clear any local state
+      setUsername('');
+      
+      // Redirect to login page
       router.push('/login');
     } catch (err) {
       console.error('Logout error:', err);
+      // Still redirect to login even if logout API fails
+      router.push('/login');
     }
   };
 

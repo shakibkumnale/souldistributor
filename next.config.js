@@ -16,6 +16,7 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
+    unoptimized: process.env.NODE_ENV === 'development', // Disable image optimization in development for faster builds
   },
   env: {
     SPOTIFY_CLIENT_ID: 'bfb9acc3c59546cf83af6a72b11958d1',

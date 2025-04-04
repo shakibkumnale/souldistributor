@@ -69,52 +69,116 @@ export default function AdminReleases() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch artists
-        const artistsResponse = await fetch('/api/artists');
-        if (!artistsResponse.ok) {
-          throw new Error('Failed to fetch artists');
+        setLoading(true);
+        
+        // Add cache-busting query parameter and proper headers
+        const timestamp = new Date().getTime();
+        
+        // Fetch artists with error handling
+        let artistsData = { artists: [] };
+        try {
+          const artistsResponse = await fetch(`/api/artists?t=${timestamp}`, {
+            credentials: 'include',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          if (!artistsResponse.ok) {
+            console.error(`Artists API error: ${artistsResponse.status}`);
+          } else {
+            // Parse response carefully
+            try {
+              const text = await artistsResponse.text();
+              artistsData = JSON.parse(text);
+            } catch (parseError) {
+              console.error('Error parsing artists JSON:', parseError);
+            }
+          }
+        } catch (artistsError) {
+          console.error('Error fetching artists:', artistsError);
         }
-        const artistsData = await artistsResponse.json();
+        
+        // Set artists even if empty
         setArtists(artistsData.artists || []);
         
-        // Fetch releases
-        const releasesResponse = await fetch('/api/releases');
-        if (!releasesResponse.ok) {
-          throw new Error('Failed to fetch releases');
+        // Fetch releases with error handling
+        let releasesData = { releases: [] };
+        try {
+          const releasesResponse = await fetch(`/api/releases?t=${timestamp}`, {
+            credentials: 'include',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          if (!releasesResponse.ok) {
+            console.error(`Releases API error: ${releasesResponse.status}`);
+          } else {
+            // Parse response carefully
+            try {
+              const text = await releasesResponse.text();
+              releasesData = JSON.parse(text);
+            } catch (parseError) {
+              console.error('Error parsing releases JSON:', parseError);
+            }
+          }
+        } catch (releasesError) {
+          console.error('Error fetching releases:', releasesError);
         }
-        const releasesData = await releasesResponse.json();
         
         // Debug release data
         console.log('Raw releases data:', releasesData);
         
         // Ensure all releases have string IDs
         const processedReleases = (releasesData.releases || []).map(release => {
-          // Debug each release
-          console.log('Processing release:', release);
-          console.log('Release _id type:', typeof release._id);
-          
-          // Ensure the _id is a valid string
-          const releaseId = ensureString(release._id);
-          console.log('Processed release ID:', releaseId);
-          
-          return {
-            ...release,
-            _id: releaseId,
-            artists: (release.artists || []).map(artist => {
-              if (typeof artist === 'string') return artist;
-              return {
-                ...artist,
-                _id: ensureString(artist._id)
-              };
-            })
-          };
+          try {
+            // Debug each release
+            console.log('Processing release:', release);
+            console.log('Release _id type:', typeof release._id);
+            
+            // Ensure the _id is a valid string
+            const releaseId = ensureString(release._id);
+            console.log('Processed release ID:', releaseId);
+            
+            return {
+              ...release,
+              _id: releaseId,
+              artists: (release.artists || []).map(artist => {
+                try {
+                  if (typeof artist === 'string') return artist;
+                  if (!artist) return '';
+                  
+                  return {
+                    ...artist,
+                    _id: ensureString(artist._id)
+                  };
+                } catch (artistError) {
+                  console.error('Error processing artist:', artistError);
+                  return typeof artist === 'string' ? artist : '';
+                }
+              }).filter(Boolean) // Remove any null/undefined/empty values
+            };
+          } catch (releaseError) {
+            console.error('Error processing release:', releaseError);
+            return {
+              _id: '',
+              title: 'Error processing release',
+              artists: [],
+              coverImage: '/images/placeholder-cover.jpg'
+            };
+          }
         });
         
         console.log('Processed releases:', processedReleases);
         setReleases(processedReleases);
       } catch (error) {
         console.error('Error fetching data:', error);
-        // Don't set error state to avoid confusion with form errors
+        setError('Failed to load data. Please try refreshing the page.');
+      } finally {
+        setLoading(false);
       }
     };
     

@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
+// Cache durations in seconds
+const CACHE_DURATIONS = {
+  static: 60 * 60 * 24 * 30, // 30 days for static assets
+  images: 60 * 60 * 24 * 7,  // 7 days for images
+  api: 60 * 60,             // 1 hour for API responses
+  pages: 60 * 5             // 5 minutes for pages
+};
+
 export async function middleware(request) {
   // Get the pathname of the request (e.g. /admin)
   const { pathname } = request.nextUrl;
+  const response = NextResponse.next();
+  
+  // Add caching headers based on the route type
+  addCachingHeaders(pathname, response);
   
   // Check if the pathname starts with /admin
   const isAdminRoute = pathname.startsWith('/admin');
@@ -45,13 +57,54 @@ export async function middleware(request) {
     }
   }
   
-  // For non-admin routes, just proceed
-  return NextResponse.next();
+  // For non-admin routes, return the response with caching headers
+  return response;
+}
+
+/**
+ * Add appropriate caching headers based on the route type
+ * @param {string} pathname - The request pathname
+ * @param {NextResponse} response - The Next.js response object
+ */
+function addCachingHeaders(pathname, response) {
+  // Skip caching for admin routes
+  if (pathname.startsWith('/admin')) {
+    response.headers.set('Cache-Control', 'no-store, must-revalidate');
+    return;
+  }
+  
+  // Add caching headers based on path pattern
+  if (pathname.match(/\.(jpe?g|png|gif|svg|webp|avif)$/i)) {
+    // Images
+    response.headers.set(
+      'Cache-Control',
+      `public, max-age=${CACHE_DURATIONS.images}, stale-while-revalidate=${CACHE_DURATIONS.images * 2}`
+    );
+  } else if (pathname.match(/\.(js|css|woff2?|ttf|eot)$/i)) {
+    // Static assets
+    response.headers.set(
+      'Cache-Control',
+      `public, max-age=${CACHE_DURATIONS.static}, stale-while-revalidate=${CACHE_DURATIONS.static * 2}`
+    );
+  } else if (pathname.startsWith('/api/')) {
+    // API routes
+    response.headers.set(
+      'Cache-Control',
+      `public, max-age=${CACHE_DURATIONS.api}, stale-while-revalidate=${CACHE_DURATIONS.api * 2}`
+    );
+  } else if (!pathname.includes('.')) {
+    // Page routes (no file extension)
+    response.headers.set(
+      'Cache-Control',
+      `public, max-age=${CACHE_DURATIONS.pages}, stale-while-revalidate=${CACHE_DURATIONS.pages * 2}`
+    );
+  }
 }
 
 export const config = {
   // Specify which paths this middleware should run on
   matcher: [
     '/admin/:path*',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

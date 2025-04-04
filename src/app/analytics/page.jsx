@@ -39,18 +39,41 @@ export default function AnalyticsPage() {
       setLoading(true);
       setError('');
       
-      // Build URL with potential artist filter
+      // Build URL with potential artist filter and cache busting
+      const timestamp = new Date().getTime();
       const url = artistId 
-        ? `/api/analytics?artist=${artistId}` 
-        : '/api/analytics';
+        ? `/api/analytics?artist=${artistId}&t=${timestamp}` 
+        : `/api/analytics?t=${timestamp}`;
       
-      const response = await fetch(url);
+      // Add proper fetch options
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch analytics data');
+        throw new Error(`Failed to fetch analytics data: ${response.status}`);
       }
       
-      const data = await response.json();
+      // Parse response carefully
+      let data;
+      try {
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('Error parsing JSON:', parseError);
+        throw new Error('Invalid response format from server');
+      }
+      
+      // Validate response data
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data received from server');
+      }
+      
+      // Set data with fallbacks for missing properties
       setAnalyticsData(data.analytics || []);
       setRecentReports(data.recentReports || []);
       setCurrentArtist(data.currentArtist || null);
@@ -62,6 +85,11 @@ export default function AnalyticsPage() {
     } catch (err) {
       console.error('Error fetching analytics:', err);
       setError(err.message || 'An error occurred while fetching data');
+      
+      // Set default empty values to prevent UI errors
+      setAnalyticsData([]);
+      setRecentReports([]);
+      if (!currentArtist) setCurrentArtist(null);
     } finally {
       setLoading(false);
       setIsFiltering(false);

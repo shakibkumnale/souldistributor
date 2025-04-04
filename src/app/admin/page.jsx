@@ -28,12 +28,52 @@ export default function AdminDashboard() {
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/dashboard/stats');
+        
+        // Add cache-busting query parameter and proper headers
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/dashboard/stats?t=${timestamp}`, {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
+          throw new Error(`Failed to fetch dashboard data: ${response.status}`);
         }
-        const data = await response.json();
-        setStats(data);
+        
+        // Parse response carefully
+        let data;
+        try {
+          const text = await response.text();
+          data = JSON.parse(text);
+        } catch (parseError) {
+          console.error('Error parsing JSON:', parseError);
+          throw new Error('Invalid response format from server');
+        }
+        
+        // Validate response data
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid data received from server');
+        }
+        
+        // Set default values for any missing properties
+        const validatedData = {
+          totalArtists: data.totalArtists || 0,
+          totalReleases: data.totalReleases || 0,
+          totalStreams: data.totalStreams || 0,
+          growthRate: data.growthRate || 0,
+          popularArtists: Array.isArray(data.popularArtists) ? data.popularArtists : [],
+          planCounts: {
+            basic: data.planCounts?.basic || 0,
+            pro: data.planCounts?.pro || 0,
+            premium: data.planCounts?.premium || 0,
+            aoc: data.planCounts?.aoc || 0
+          }
+        };
+        
+        setStats(validatedData);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         setError(error.message);

@@ -21,6 +21,10 @@ export async function connectToDatabase() {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
+      serverSelectionTimeoutMS: 60000, // Increase timeout for server selection
+      socketTimeoutMS: 45000, // Increase socket timeout
+      family: 4, // Use IPv4, skip trying IPv6
+      connectTimeoutMS: 60000, // Increase connection timeout
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {

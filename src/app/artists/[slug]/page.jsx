@@ -1,6 +1,6 @@
 // src/app/artists/[slug]/page.jsx
 import { notFound } from 'next/navigation';
-import { connectToDatabase } from '@/lib/mongodb';
+import connectToDatabase from '@/lib/db';
 import Artist from '@/models/Artist';
 import Release from '@/models/Release';
 import ArtistProfile from '@/components/artists/ArtistProfile';

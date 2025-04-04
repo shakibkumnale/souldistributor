@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Music, Play, Disc3, Calendar, ExternalLink } from 'lucide-react';
 import MediaPlayer from '@/components/releases/MediaPlayer';
-import { connectToDatabase } from '@/lib/mongodb';
+import connectToDatabase from '@/lib/db';
 import Release from '@/models/Release';
 import Artist from '@/models/Artist';
 import { formatDate } from '@/lib/utils';

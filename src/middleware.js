@@ -39,7 +39,7 @@ export async function middleware(request) {
       
       // If everything is ok, allow the request
       return NextResponse.next();
-    } catch (error) {
+    } catch {
       // If token verification fails, redirect to login
       return NextResponse.redirect(new URL('/login', request.url));
     }

@@ -1,5 +1,3 @@
-import { use } from 'react';
-
 export async function generateMetadata({ params }) {
   // For metadata we don't need to use React.use() since this is a server function
   // The warning is only for client components that directly access params properties

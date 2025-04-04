@@ -3,7 +3,6 @@ import { connectToDatabase } from '@/lib/db';
 import Release from '@/models/Release';
 import StreamData from '@/models/StreamData';
 import { parse } from 'csv-parse/sync';
-import { parseISO } from 'date-fns';
 
 export const config = {
   api: {

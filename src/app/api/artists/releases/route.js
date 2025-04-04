@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import Release from '@/models/Release';
 import Artist from '@/models/Artist';
-import mongoose from 'mongoose';
 
 /**
  * GET /api/artists/releases

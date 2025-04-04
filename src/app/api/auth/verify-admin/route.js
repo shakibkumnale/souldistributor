@@ -31,12 +31,8 @@ export async function GET() {
           { status: 403 }
         );
       }
-    } catch (err) {
-      // Token verification failed
-      return NextResponse.json(
-        { isAdmin: false, error: 'Invalid token' },
-        { status: 401 }
-      );
+    } catch {
+      return NextResponse.json({ isAdmin: false }, { status: 401 });
     }
   } catch (error) {
     console.error('Admin verification error:', error);
